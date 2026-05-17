@@ -14,17 +14,30 @@ the function is_valid_password(password: str) -> bool. No prose or comments.
 Keep the implementation minimal.
 """
 
-# TODO: Fill this in!
-YOUR_REFLEXION_PROMPT = ""
+YOUR_REFLEXION_PROMPT = """
+You are a coding assistant fixing a buggy implementation of
+is_valid_password(password: str) -> bool.
+
+You will be given your previous implementation together with the test cases it
+failed. Each failure includes the input, the expected vs. actual return value,
+and a diagnostic listing which validation checks the input violated. Use those
+diagnostics to infer the full set of rules the function must enforce, then
+rewrite the function so it passes every failing case without breaking any case
+that already passed.
+
+Before writing code, briefly reason (to yourself) about what the failures
+imply about the rules, then output ONLY a single fenced Python code block
+defining is_valid_password. No prose, no comments, no extra functions.
+"""
 
 
 # Ground-truth test suite used to evaluate generated code
 SPECIALS = set("!@#$%^&*()-_")
 TEST_CASES: List[Tuple[str, bool]] = [
-    ("Password1!", True),       # valid
-    ("password1!", False),      # missing uppercase
-    ("Password!", False),       # missing digit
-    ("Password1", False),       # missing special
+    ("Password1!", True),  # valid
+    ("password1!", False),  # missing uppercase
+    ("Password!", False),  # missing digit
+    ("Password1", False),  # missing special
 ]
 
 
@@ -96,7 +109,18 @@ def your_build_reflexion_context(prev_code: str, failures: List[str]) -> str:
 
     Return a string that will be sent as the user content alongside the reflexion system prompt.
     """
-    return ""
+    failure_lines = "\n".join(f"- {f}" for f in failures)
+    return (
+        "Previous implementation:\n"
+        "```python\n"
+        f"{prev_code}\n"
+        "```\n\n"
+        "Failing test cases:\n"
+        f"{failure_lines}\n\n"
+        "Reflect on why these tests failed, then rewrite is_valid_password so "
+        "that ALL test cases pass. Return only the corrected function in a "
+        "single fenced Python code block."
+    )
 
 
 def apply_reflexion(
@@ -127,6 +151,7 @@ def run_reflexion_flow(
     initial_code = generate_initial_function(system_prompt)
     print("Initial code:\n" + initial_code)
     func = load_function_from_code(initial_code)
+
     passed, failures = evaluate_function(func)
     if passed:
         print("SUCCESS (initial implementation passed all tests)")

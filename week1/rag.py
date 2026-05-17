@@ -36,8 +36,15 @@ QUESTION = (
 )
 
 
-# TODO: Fill this in!
-YOUR_SYSTEM_PROMPT = ""
+YOUR_SYSTEM_PROMPT = (
+    "You are a precise Python coding assistant. "
+    "Use ONLY the API details provided in the user's Context block; do not invent endpoints, headers, or response fields. "
+    "If the context specifies a Base URL, endpoint path, authentication header, or response schema, use them verbatim. "
+    "Produce a single self-contained Python function that uses the `requests` library, "
+    "sends the documented authentication header, calls response.raise_for_status() for non-200 responses, "
+    "and returns only the requested field as a string. "
+    "Respond with a single fenced ```python code block containing the imports and the function, and nothing else."
+)
 
 
 # For this simple example
@@ -52,11 +59,21 @@ REQUIRED_SNIPPETS = [
 
 
 def YOUR_CONTEXT_PROVIDER(corpus: List[str]) -> List[str]:
-    """TODO: Select and return the relevant subset of documents from CORPUS for this task.
+    """Retrieve documents relevant to the QUESTION via simple keyword overlap scoring."""
+    query_terms = {t.lower() for t in re.findall(r"[A-Za-z_][A-Za-z0-9_]+", QUESTION) if len(t) > 2}
+    # Always-useful API vocabulary so doc snippets describing endpoints/auth score well.
+    query_terms.update({"api", "endpoint", "header", "auth", "base", "url", "users"})
 
-    For example, return [] to simulate missing context, or [corpus[0]] to include the API docs.
-    """
-    return []
+    scored: List[tuple] = []
+    for doc in corpus:
+        doc_terms = {t.lower() for t in re.findall(r"[A-Za-z_][A-Za-z0-9_]+", doc)}
+        overlap = len(query_terms & doc_terms)
+        if overlap > 0:
+            scored.append((overlap, doc))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top_docs = [doc for _, doc in scored[:3]]
+    return top_docs if top_docs else list(corpus)
 
 
 def make_user_prompt(question: str, context_docs: List[str]) -> str:
@@ -89,10 +106,14 @@ def extract_code_block(text: str) -> str:
     return text.strip()
 
 
-def test_your_prompt(system_prompt: str, context_provider: Callable[[List[str]], List[str]]) -> bool:
+def test_your_prompt(
+    system_prompt: str, context_provider: Callable[[List[str]], List[str]]
+) -> bool:
     """Run up to NUM_RUNS_TIMES and return True if any output matches EXPECTED_OUTPUT."""
     context_docs = context_provider(CORPUS)
     user_prompt = make_user_prompt(QUESTION, context_docs)
+
+    # breakpoint()
 
     for idx in range(NUM_RUNS_TIMES):
         print(f"Running test {idx + 1} of {NUM_RUNS_TIMES}")

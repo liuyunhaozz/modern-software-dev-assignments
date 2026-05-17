@@ -69,8 +69,25 @@ TOOL_REGISTRY: Dict[str, Callable[..., str]] = {
 # Prompt scaffolding
 # ==========================
 
-# TODO: Fill this in!
-YOUR_SYSTEM_PROMPT = ""
+YOUR_SYSTEM_PROMPT = """You are a tool-calling agent. You have access to exactly ONE tool:
+
+Tool name: output_every_func_return_type
+Description: Reads a Python source file and returns a newline-delimited list of "function_name: return_type" for every top-level function defined in that file.
+Arguments:
+  - file_path (string, optional): Absolute or relative path to the Python file to analyze. If omitted or empty, the tool defaults to the current script (tool_calling.py).
+
+Your task: When the user says "Call the tool now.", you MUST invoke this tool to analyze the file "tool_calling.py".
+
+Response format (STRICT):
+- Output ONLY a single raw JSON object. No prose, no explanation, no markdown, no code fences.
+- The JSON must have exactly these two keys:
+    "tool": the string "output_every_func_return_type"
+    "args": an object containing the tool arguments
+- To target the current script, use an empty string for file_path, like this:
+
+{"tool": "output_every_func_return_type", "args": {"file_path": ""}}
+
+Do not output anything other than that JSON object. Do not wrap it in backticks. Do not add commentary."""
 
 
 def resolve_path(p: str) -> str:
