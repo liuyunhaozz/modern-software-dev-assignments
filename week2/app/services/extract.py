@@ -1,26 +1,12 @@
 from __future__ import annotations
 
-import os
 import re
 from typing import List
-import json
-from typing import Any
+
 from ollama import chat
-from pydantic import BaseModel
-from dotenv import load_dotenv
+from pydantic import BaseModel, ValidationError
 
-load_dotenv()
-
-# Default Ollama model used for LLM-powered extraction. Override via env var.
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-
-
-# Pydantic schema for Ollama structured outputs: a JSON object containing
-# an array of action item strings. Using a Pydantic model lets us pass the
-# model's JSON schema directly to Ollama via the `format` parameter, then
-# validate/parse the LLM's response in a single step.
-class ActionItemList(BaseModel):
-    items: List[str]
+from ..config import get_settings
 
 
 BULLET_PREFIX_PATTERN = re.compile(r"^\s*([-*•]|\d+\.)\s+")
@@ -29,6 +15,15 @@ KEYWORD_PREFIXES = (
     "action:",
     "next:",
 )
+
+
+# ---------------------------------------------------------------------------
+# Typed exception so routers can return the right HTTP status when the LLM
+# call fails (Ollama not running, model not pulled, etc.) or returns output
+# that doesn't satisfy the schema.
+# ---------------------------------------------------------------------------
+class LLMExtractionError(RuntimeError):
+    """Raised when the Ollama call or its response is unusable."""
 
 
 def _is_action_line(line: str) -> bool:
@@ -67,16 +62,7 @@ def extract_action_items(text: str) -> List[str]:
                 continue
             if _looks_imperative(s):
                 extracted.append(s)
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    unique: List[str] = []
-    for item in extracted:
-        lowered = item.lower()
-        if lowered in seen:
-            continue
-        seen.add(lowered)
-        unique.append(item)
-    return unique
+    return _dedupe_preserve_order(extracted)
 
 
 def _looks_imperative(sentence: str) -> bool:
@@ -102,6 +88,21 @@ def _looks_imperative(sentence: str) -> bool:
     return first.lower() in imperative_starters
 
 
+def _dedupe_preserve_order(items: List[str]) -> List[str]:
+    seen: set[str] = set()
+    unique: List[str] = []
+    for item in items:
+        cleaned = item.strip()
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(cleaned)
+    return unique
+
+
 # ---------------------------------------------------------------------------
 # LLM-powered extraction (TODO 1)
 # ---------------------------------------------------------------------------
@@ -112,13 +113,20 @@ def _looks_imperative(sentence: str) -> bool:
 # to return a JSON object matching `ActionItemList`, removing the need for
 # brittle text parsing.
 #
+# Network / parsing failures are surfaced as `LLMExtractionError` so the
+# API layer can translate them into a 502/503 response.
+#
 # See: https://ollama.com/blog/structured-outputs
+class ActionItemList(BaseModel):
+    items: List[str]
+
+
 def extract_action_items_llm(text: str, model: str | None = None) -> List[str]:
     text = (text or "").strip()
     if not text:
         return []
 
-    chosen_model = model or OLLAMA_MODEL
+    chosen_model = model or get_settings().ollama_model
 
     system_prompt = (
         "You extract concrete, actionable to-do items from free-form notes. "
@@ -128,38 +136,23 @@ def extract_action_items_llm(text: str, model: str | None = None) -> List[str]:
         "If the note contains no actionable items, return an empty list."
     )
 
-    print("system_prompt: ", system_prompt)
-    print("text: ", text)
-
-    response = chat(
-        model=chosen_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text},
-        ],
-        # Pass the JSON schema of our Pydantic model so Ollama constrains
-        # the model output to a valid JSON object with an `items` array.
-        format=ActionItemList.model_json_schema(),
-        options={"temperature": 0},
-    )
+    try:
+        response = chat(
+            model=chosen_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": text},
+            ],
+            format=ActionItemList.model_json_schema(),
+            options={"temperature": 0},
+        )
+    except Exception as exc:  # ollama client raises various exception types
+        raise LLMExtractionError(f"Ollama call failed: {exc}") from exc
 
     raw = response["message"]["content"]
-    parsed = ActionItemList.model_validate_json(raw)
+    try:
+        parsed = ActionItemList.model_validate_json(raw)
+    except ValidationError as exc:
+        raise LLMExtractionError("Ollama returned malformed JSON") from exc
 
-    print("response: ", response)
-    print("parsed: ", parsed)
-
-    # Deduplicate (case-insensitive) while preserving order — same contract
-    # as the heuristic extractor above.
-    seen: set[str] = set()
-    unique: List[str] = []
-    for item in parsed.items:
-        cleaned = item.strip()
-        if not cleaned:
-            continue
-        key = cleaned.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(cleaned)
-    return unique
+    return _dedupe_preserve_order(parsed.items)
