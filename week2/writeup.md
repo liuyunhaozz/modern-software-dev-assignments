@@ -275,12 +275,96 @@ Verification:
 ### Exercise 4: Use Agentic Mode to Automate a Small Task
 Prompt: 
 ```
-TODO
+In agentic mode, wire up the two TODO 4 features end-to-end (backend +
+frontend) on top of the post-refactor codebase from Exercise 3.
+
+(1) LLM extraction endpoint + button
+  - In `week2/app/routers/action_items.py`, add a new
+    `POST /action-items/extract-llm` route that mirrors the existing
+    `/extract` route but calls `extract_action_items_llm` instead of
+    `extract_action_items`. It must:
+      * accept the same `ExtractRequest` body and return the same
+        `ExtractResponse` with `status_code=201`;
+      * reuse the existing `_persist_extraction()` helper so the
+        save_note + insert_action_items behavior is identical;
+      * rely on the global `LLMExtractionError → 502` handler
+        registered in `main.py` for error mapping (no try/except in
+        the router).
+  - In `week2/frontend/index.html`, add an "Extract LLM" button next
+    to the existing "Extract" button. Refactor the existing click
+    handler into a shared `runExtraction(endpoint, label)` function
+    so the two buttons share one code path (the only difference is
+    the URL). Show a progress message that mentions which extractor
+    is running, and surface backend error `detail` strings to the
+    user on failure.
+
+(2) List Notes endpoint + button
+  - In `week2/app/routers/notes.py`, add `GET /notes` that returns
+    `List[NoteResponse]` by calling `db.list_notes()`. Newest-first
+    ordering is already provided by the DB helper.
+  - In `week2/frontend/index.html`, add a "List Notes" button that
+    fetches `/notes`, clears the action-item area, and renders each
+    note as a card with its id, created_at, and content. Use a small
+    `escape()` helper to HTML-escape user-controlled strings before
+    injecting them via innerHTML (prevents XSS from note content).
+
+Constraints:
+  - Mark the new code with `TODO 4:` comments so it is easy to find.
+  - Do not touch the existing unit tests; run
+    `poetry run pytest week2/tests/` to confirm they still pass.
+  - Verify the new endpoints with FastAPI's TestClient: confirm
+    GET /notes returns 200 + a JSON array, POST /extract returns 201
+    with the heuristic items (regression), POST /extract-llm returns
+    201 with the Ollama-extracted items, and the OpenAPI document
+    lists `/notes` and `/action-items/extract-llm` as routes.
 ``` 
 
 Generated Code Snippets:
 ```
-TODO: List all modified code files with the relevant line numbers.
+week2/app/routers/action_items.py:
+  - Line 17:    expanded import to bring in `extract_action_items_llm`
+                alongside the heuristic extractor.
+  - Lines 57-69: new `POST /action-items/extract-llm` route — same
+                  request/response models as /extract, calls
+                  `extract_action_items_llm`, reuses
+                  `_persist_extraction()`. `TODO 4:` comment marks it.
+
+week2/app/routers/notes.py:
+  - Lines 3, 7:   added `List` import.
+  - Lines 39-47:  new `GET /notes` route returning `List[NoteResponse]`
+                  via `db.list_notes()`. `TODO 4:` comment marks it.
+
+week2/frontend/index.html:
+  - Lines 15-17:  added `.note-card` styles and made the button row
+                  wrap when narrow.
+  - Lines 26-29:  added "Extract LLM" and "List Notes" buttons next
+                  to the existing "Extract" button (each tagged with
+                  a `TODO 4:` HTML comment).
+  - Lines 31-33:  new `#notes` container the List Notes handler
+                  populates.
+  - Lines 37-43:  `escape()` helper for safe innerHTML injection of
+                  user-supplied note text.
+  - Lines 45-83:  refactored click handler into a shared
+                  `runExtraction(endpoint, label)` function — the
+                  heuristic and LLM buttons now share one code path,
+                  differing only in the endpoint they POST to.
+                  Backend `detail` strings are surfaced on error.
+  - Lines 85-89:  Extract button wired to /action-items/extract.
+  - Lines 91-94:  Extract LLM button wired to /action-items/extract-llm.
+  - Lines 96-118: List Notes handler — fetches /notes and renders each
+                  result as a `.note-card` with id, created_at, and
+                  HTML-escaped content.
+
+Verification:
+  - `poetry run pytest week2/tests/` — 6 passed in 5.34s (no
+    regressions from Exercise 3).
+  - TestClient checks:
+      GET /notes                       → 200, returns the JSON array.
+      POST /action-items/extract       → 201, heuristic items
+                                         (regression check).
+      POST /action-items/extract-llm   → 201, LLM-extracted items.
+      OpenAPI paths now include
+        `/action-items/extract-llm` and `/notes`.
 ```
 
 

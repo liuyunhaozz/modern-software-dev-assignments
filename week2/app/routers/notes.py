@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import List
+
 from fastapi import APIRouter, HTTPException, status
 
 from .. import db
@@ -24,6 +26,17 @@ def create_note(payload: NoteCreate) -> NoteResponse:
     note = db.get_note(note_id)
     assert note is not None  # row was just inserted
     return NoteResponse(**note)
+
+
+# TODO 4: list all notes, newest first. Used by the frontend "List Notes"
+# button to display every note persisted via `save_note=true`.
+@router.get(
+    "",
+    response_model=List[NoteResponse],
+    summary="List all notes (newest first)",
+)
+def list_all_notes() -> List[NoteResponse]:
+    return [NoteResponse(**n) for n in db.list_notes()]
 
 
 @router.get(

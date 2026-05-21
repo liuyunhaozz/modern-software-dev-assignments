@@ -13,7 +13,7 @@ from ..schemas import (
     MarkDoneRequest,
     MarkDoneResponse,
 )
-from ..services.extract import extract_action_items
+from ..services.extract import extract_action_items, extract_action_items_llm
 
 
 router = APIRouter(
@@ -45,6 +45,21 @@ def _persist_extraction(text: str, items: List[str], save_note: bool) -> Extract
 def extract(payload: ExtractRequest) -> ExtractResponse:
     text = payload.text.strip()
     items = extract_action_items(text)
+    return _persist_extraction(text, items, payload.save_note)
+
+
+# TODO 4: LLM-powered extraction endpoint. Mirrors /extract but delegates
+# extraction to Ollama. `LLMExtractionError` raised by the service layer is
+# caught by the global handler in main.py and mapped to HTTP 502.
+@router.post(
+    "/extract-llm",
+    response_model=ExtractResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Extract action items using the LLM extractor (Ollama)",
+)
+def extract_llm(payload: ExtractRequest) -> ExtractResponse:
+    text = payload.text.strip()
+    items = extract_action_items_llm(text)
     return _persist_extraction(text, items, payload.save_note)
 
 
