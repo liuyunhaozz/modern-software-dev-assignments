@@ -371,12 +371,84 @@ Verification:
 ### Exercise 5: Generate a README from the Codebase
 Prompt: 
 ```
-TODO
+Generate a comprehensive `week2/README.md` from the actual code in the
+`week2/` directory. Read every file under `week2/app/`, `week2/tests/`,
+and `week2/frontend/` and base the content strictly on what is there —
+do not invent endpoints, env vars, file paths, or test names.
+
+Required sections:
+  1. Project overview — one-paragraph description plus a short
+     comparison of the two extraction strategies (heuristic vs. LLM
+     via Ollama with structured outputs).
+  2. Project layout — a `tree`-style snippet showing the directories
+     and key files (app/, app/routers/, app/services/, frontend/,
+     tests/, data/).
+  3. Setup — prerequisites (Python 3.12, Conda, Poetry, Ollama for
+     LLM extraction) and the exact commands (`conda activate cs146s`,
+     `poetry install --no-interaction`, `ollama pull llama3.1:8b`,
+     `ollama serve`).
+  4. Configuration — table of every env var read by `app/config.py`
+     (APP_NAME, DATA_DIR, DB_PATH, FRONTEND_DIR, OLLAMA_MODEL) with
+     defaults and purposes.
+  5. Run — the exact uvicorn command (`poetry run uvicorn
+     week2.app.main:app --reload`) plus the URLs for the UI and the
+     OpenAPI docs.
+  6. API — two tables (one per router) listing every route with its
+     method, path, request body schema, response status/schema, and
+     a one-line description. Include a curl example for the LLM
+     endpoint and a JSON example of `ExtractRequest`.
+  7. Frontend — explain the three buttons (Extract, Extract LLM, List
+     Notes) and which endpoints each one hits.
+  8. Database — describe the two tables, mention that
+     `PRAGMA foreign_keys = ON` is enforced on every connection, and
+     note that the schema is created via the FastAPI lifespan.
+  9. Tests — the exact pytest command and a one-line description of
+     each test, plus the note that LLM tests need a live Ollama
+     server.
+  10. Error handling — list the status codes the API returns (422,
+      404, 502) and the conditions that trigger each.
+
+Constraints:
+  - Use real route names, real schema names, and real file paths.
+  - Do not include features that are not in the code (e.g. no delete
+    endpoints, no auth).
+  - Use plain Markdown — no emojis.
 ``` 
 
 Generated Code Snippets:
 ```
-TODO: List all modified code files with the relevant line numbers.
+week2/README.md (new file, entire contents):
+  - Overview + comparison of heuristic vs. LLM extraction strategies
+    with the structured-output mechanism described.
+  - "Project layout" tree-style snippet of the week2/ directory.
+  - "Setup" section: conda env activation, `poetry install`, and the
+    Ollama prerequisites for LLM tests (`ollama pull llama3.1:8b`,
+    `ollama serve`).
+  - "Configuration" table covering all five env vars exposed by
+    `app/config.py` (APP_NAME, DATA_DIR, DB_PATH, FRONTEND_DIR,
+    OLLAMA_MODEL) with their defaults.
+  - "Run" section with the uvicorn command and the / + /docs URLs.
+  - "API" section: two tables documenting every endpoint in
+    `app/routers/notes.py` (POST /notes, GET /notes, GET /notes/{id})
+    and `app/routers/action_items.py` (POST /action-items/extract,
+    POST /action-items/extract-llm, GET /action-items,
+    POST /action-items/{id}/done), each with its Pydantic
+    request/response schema and status codes. Includes an
+    `ExtractRequest` JSON example and a `curl` example for the LLM
+    endpoint.
+  - "Frontend" section explaining what each of the three buttons
+    does and which endpoint it hits.
+  - "Database" section describing the `notes` and `action_items`
+    tables, the FK with ON DELETE CASCADE, the `PRAGMA foreign_keys
+    = ON` invariant, and the lifespan-driven schema creation.
+  - "Tests" section: `poetry run pytest week2/tests/ -v` plus a
+    summary of `test_extract_bullets_and_checkboxes` and the five
+    `test_llm_extract_*` tests, with the live-Ollama caveat.
+  - "Error handling" section listing 422 (Pydantic validation), 404
+    (missing id), and 502 (LLMExtractionError) plus the conditions
+    that trigger each.
+
+No other files modified.
 ```
 
 
